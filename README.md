@@ -1,2 +1,2 @@
 # Fractional Differencing SARIMA
- Comparing SARIMA models with First Order vs Fractional Differencing
+ Comparing SARIMAX model with First Order Differencing and Fractional Differencing
