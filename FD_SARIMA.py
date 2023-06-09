@@ -3,25 +3,29 @@ from itertools import product
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 import statsmodels.tsa.stattools as stattools
 from alpha_vantage.timeseries import TimeSeries
-from fracdiff import Fracdiff, fdiff
+from fracdiff import fdiff
 from fracdiff.sklearn import FracdiffStat
-from pyFTS.models.nonstationary import nsfts
-from pyFTS.models.nonstationary import partitioners as nspart
 from sklearn.linear_model import ElasticNet
 from sklearn.model_selection import train_test_split
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 # Pull intraday stock data
+with open("key.txt") as f:
+    key = f.readline().strip("\n")
+
 sym = 'AAPL'
-tseries = TimeSeries(key='RDO0LSA057HUKGIP', output_format='pandas')
-data, meta_data = tseries.get_intraday(symbol=sym, interval='60min', outputsize='full')
+tseries = TimeSeries(key=key, output_format='pandas')
+data, meta_data = tseries.get_intraday(symbol=sym,
+                                       interval='60min',
+                                       outputsize='full')
 
 close = pd.Series(np.log(data['4. close'][::-1]))
 
 plt.plot(np.array(close))
 plt.show()
+
 
 def adfstat(d):
     diff = fdiff(close, d, mode="valid")
@@ -49,7 +53,10 @@ ax_corr = ax_stat.twinx()
 
 ax_stat.plot(ds, stats, color="blue", label="ADF statistics (left)")
 ax_corr.plot(ds, corrs, color="orange", label="correlation (right)")
-ax_stat.axhline(y=crit["5%"], linestyle="--", color="k", label="5% critical value")
+ax_stat.axhline(y=crit["5%"],
+                linestyle="--",
+                color="k",
+                label="5% critical value")
 
 plt.title("Stationarity and memory of fractionally differentiated " + sym)
 fig.legend()
@@ -117,20 +124,20 @@ plt.plot(y_test)
 plt.show()
 
 
-def arma_(signal, fd=False):
+def sarimax_(signal, fd=False):
     best_arima = None
     src = signal
 
-    if fd == False:
+    if fd is False:
         df = src.diff()
         df_ar = pd.DataFrame(df)
-    if fd == True:
+    if fd is True:
         df_ar = pd.DataFrame(src)
 
     def reverse_close(array):
-        if fd == False:
+        if fd is False:
             return array + src.shift(1)
-        if fd == True:
+        if fd is True:
             return array
 
     Qs = range(0, 2)
@@ -143,12 +150,14 @@ def arma_(signal, fd=False):
     best_aic = float("inf")
     for first, second, third, fourth in parameters_list:
         try:
-            arima = sm.tsa.statespace.SARIMAX(df_ar.values,
-                                              order=(first, D, second),
-                                              seasonal_order=(third, D, fourth, 4)).fit(disp=True,
-                                                                                        maxiter=200,
-                                                                                        method='powell')
-        except:
+            arima = SARIMAX(df_ar.values,
+                            order=(first, D, second),
+                            seasonal_order=(third,
+                                            D,
+                                            fourth, 4)).fit(disp=True,
+                                                            maxiter=200,
+                                                            method='powell')
+        except ValueError:
             continue
         aic = arima.aic
         if aic < best_aic and aic:
@@ -158,8 +167,8 @@ def arma_(signal, fd=False):
     return reverse_close(best_arima.predict())
 
 
-sarima = arma_(close, fd=False)
-sarima_fd = arma_(close_diff, fd=True)
+sarima = sarimax_(close, fd=False)
+sarima_fd = sarimax_(close_diff, fd=True)
 
 
 mean_squared_error_d = np.mean((sarima[29:] - close[29:]) ** 2)
